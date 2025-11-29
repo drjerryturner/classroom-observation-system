@@ -1,0 +1,84 @@
+generator client {  
+  provider = "prisma-client-js"  
+}  
+  
+datasource db {  
+  provider = "postgresql"  
+  url      = env("DATABASE_URL")  
+}  
+  
+model User {  
+  id        String   @id @default(cuid())  
+  email     String   @unique  
+  password  String  
+  name      String  
+  role      String   @default("psychologist")  
+  createdAt DateTime @default(now())  
+  updatedAt DateTime @updatedAt  
+  students  Student[]  
+  observations Observation[]  
+  
+  @@map("users")  
+}  
+  
+model IdeaCategory {  
+  id          String   @id @default(cuid())  
+  name        String  
+  description String  
+  students    Student[]  
+  
+  @@map("idea_categories")  
+}  
+  
+model Student {  
+  id             String       @id @default(cuid())  
+  name           String  
+  grade          String  
+  dateOfBirth    DateTime  
+  ideaCategoryId String  
+  userId         String  
+  createdAt      DateTime     @default(now())  
+  updatedAt      DateTime     @updatedAt  
+    
+  ideaCategory   IdeaCategory @relation(fields: [ideaCategoryId], references: [id])  
+  user           User         @relation(fields: [userId], references: [id])  
+  observations   Observation[]  
+  
+  @@map("students")  
+}  
+  
+model Observation {  
+  id          String   @id @default(cuid())  
+  title       String  
+  date        DateTime  
+  duration    Int  
+  location    String  
+  purpose     String  
+  methodology String  
+  completed   Boolean  @default(false)  
+  studentId   String  
+  userId      String  
+  createdAt   DateTime @default(now())  
+  updatedAt   DateTime @updatedAt  
+    
+  student     Student  @relation(fields: [studentId], references: [id])  
+  user        User     @relation(fields: [userId], references: [id])  
+  entries     ObservationEntry[]  
+  
+  @@map("observations")  
+}  
+  
+model ObservationEntry {  
+  id            String   @id @default(cuid())  
+  timestamp     DateTime  
+  behavior      String  
+  context       String  
+  notes         String?  
+  tags          String[]  
+  observationId String  
+  createdAt     DateTime @default(now())  
+    
+  observation   Observation @relation(fields: [observationId], references: [id], onDelete: Cascade)  
+  
+  @@map("observation_entries")  
+}  
