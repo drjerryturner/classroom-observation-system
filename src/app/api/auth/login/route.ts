@@ -1,54 +1,63 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
-import { verifyPassword, generateToken } from '@/lib/auth'
+import bcrypt from 'bcryptjs'
+import jwt from 'jsonwebtoken'
+import { PrismaClient } from '@prisma/client'
 
-export async function POST(req: NextRequest) {
+const prisma = new PrismaClient()
+
+export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await req.json()
+    const body = await request.json()
+    console.log('LOGIN BODY:', body)
 
-    // Validate required fields
-    if (!email || !password) {
-      return NextResponse.json(
-        { error: 'Email and password are required' },
-        { status: 400 }
-      )
-    }
+    const { email, password } = body || {}
+    console.log('PARSED EMAIL:', email)
+    console.log('PASSWORD LENGTH:', password ? password.length : null)
 
-    // Find user by email
+    // 1) Look up user in database
     const user = await prisma.user.findUnique({
-      where: { email }
+      where: { email },
     })
 
+    console.log('USER FROM DB:', user)
+
     if (!user) {
+      // Make the reason visible
       return NextResponse.json(
-        { error: 'Invalid credentials' },
+        { error: 'Invalid credentials - no user found for this email' },
         { status: 401 }
       )
     }
 
-    // Verify password
-    const isValidPassword = await verifyPassword(password, user.password)
+    // 2) Check password
+    const isValidPassword = await bcrypt.compare(password, user.password)
+    console.log('PASSWORD VALID:', isValidPassword)
 
     if (!isValidPassword) {
       return NextResponse.json(
-        { error: 'Invalid credentials' },
+        { error: 'Invalid credentials - password mismatch' },
         { status: 401 }
       )
     }
 
-    // Generate token
-    const token = generateToken(user)
-
-    // Return user data without password
-    const { password: _, ...userWithoutPassword } = user
+    // 3) Generate token
+    const token = jwt.sign(
+      { userId: user.id, email: user.email },
+      process.env.JWT_SECRET || 'fallback-secret',
+      { expiresIn: '24h' }
+    )
 
     return NextResponse.json({
-      user: userWithoutPassword,
-      token
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+      },
     })
-
   } catch (error) {
-    console.error('Login error:', error)
+    console.error('LOGIN ERROR (exception):', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
